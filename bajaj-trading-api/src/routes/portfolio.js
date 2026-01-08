@@ -2,7 +2,104 @@ const express = require('express');
 const router = express.Router();
 const store = require('../data/store');
 const auth = require('../middleware/auth');
+const logger = require('../utils/logger');
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Holding:
+ *       type: object
+ *       properties:
+ *         symbol:
+ *           type: string
+ *           example: RELIANCE
+ *         quantity:
+ *           type: integer
+ *           example: 10
+ *         averagePrice:
+ *           type: number
+ *           example: 2400.00
+ *         currentPrice:
+ *           type: number
+ *           example: 2450.50
+ *         currentValue:
+ *           type: number
+ *           example: 24505.00
+ *         investedValue:
+ *           type: number
+ *           example: 24000.00
+ *         profitLoss:
+ *           type: number
+ *           example: 505.00
+ *         profitLossPercentage:
+ *           type: number
+ *           example: 2.10
+ *     PortfolioSummary:
+ *       type: object
+ *       properties:
+ *         totalInvestment:
+ *           type: number
+ *         totalCurrentValue:
+ *           type: number
+ *         totalProfitLoss:
+ *           type: number
+ *         totalProfitLossPercentage:
+ *           type: number
+ */
+
+/**
+ * @swagger
+ * /api/v1/portfolio:
+ *   get:
+ *     summary: Get portfolio holdings with P&L
+ *     tags: [Portfolio]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Portfolio with holdings and summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     holdings:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Holding'
+ *                     summary:
+ *                       $ref: '#/components/schemas/PortfolioSummary'
+ *       401:
+ *         description: Unauthorized
+ */
+
+/**
+ * @swagger
+ * /api/v1/portfolio/{symbol}:
+ *   get:
+ *     summary: Get specific holding by symbol
+ *     tags: [Portfolio]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: symbol
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: RELIANCE
+ *     responses:
+ *       200:
+ *         description: Holding details
+ *       404:
+ *         description: Holding not found
+ */
 router.use(auth);
 
 // Helper to calculate P&L for a holding
@@ -29,6 +126,7 @@ const calculateHoldingStats = (holding) => {
 // GET / - Get portfolio summary
 router.get('/', (req, res) => {
   const rawHoldings = store.getPortfolio(req.userId);
+  logger.info('Portfolio fetched', { userId: req.userId, holdingsCount: rawHoldings.length });
   
   const enrichedHoldings = rawHoldings.map(calculateHoldingStats);
 

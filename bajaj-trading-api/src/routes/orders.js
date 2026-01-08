@@ -2,7 +2,134 @@ const express = require('express');
 const router = express.Router();
 const store = require('../data/store');
 const auth = require('../middleware/auth');
+const logger = require('../utils/logger');
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Order:
+ *       type: object
+ *       properties:
+ *         orderId:
+ *           type: string
+ *           example: ORD17365432001234
+ *         userId:
+ *           type: string
+ *           example: USER001
+ *         symbol:
+ *           type: string
+ *           example: RELIANCE
+ *         exchange:
+ *           type: string
+ *           example: NSE
+ *         orderType:
+ *           type: string
+ *           enum: [BUY, SELL]
+ *         orderStyle:
+ *           type: string
+ *           enum: [MARKET, LIMIT]
+ *         quantity:
+ *           type: integer
+ *           example: 10
+ *         price:
+ *           type: number
+ *           nullable: true
+ *         status:
+ *           type: string
+ *           enum: [NEW, PLACED, EXECUTED, CANCELLED]
+ *         filledQuantity:
+ *           type: integer
+ *         averageFilledPrice:
+ *           type: number
+ *     OrderRequest:
+ *       type: object
+ *       required:
+ *         - symbol
+ *         - orderType
+ *         - orderStyle
+ *         - quantity
+ *       properties:
+ *         symbol:
+ *           type: string
+ *           example: SBIN
+ *         orderType:
+ *           type: string
+ *           enum: [BUY, SELL]
+ *           example: BUY
+ *         orderStyle:
+ *           type: string
+ *           enum: [MARKET, LIMIT]
+ *           example: MARKET
+ *         quantity:
+ *           type: integer
+ *           minimum: 1
+ *           example: 5
+ *         price:
+ *           type: number
+ *           description: Required for LIMIT orders
+ *           example: 850.00
+ */
+
+/**
+ * @swagger
+ * /api/v1/orders:
+ *   post:
+ *     summary: Place a new order
+ *     tags: [Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/OrderRequest'
+ *     responses:
+ *       201:
+ *         description: Order placed successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *   get:
+ *     summary: Get all orders for user
+ *     tags: [Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [NEW, PLACED, EXECUTED, CANCELLED]
+ *     responses:
+ *       200:
+ *         description: List of orders
+ *       401:
+ *         description: Unauthorized
+ */
+
+/**
+ * @swagger
+ * /api/v1/orders/{orderId}:
+ *   get:
+ *     summary: Get order by ID
+ *     tags: [Orders]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Order details
+ *       404:
+ *         description: Order not found
+ */
 router.use(auth);
 
 // POST / - Place new order
@@ -44,6 +171,8 @@ router.post('/', (req, res) => {
       }
     }
 
+    logger.info('Order request received', { userId, symbol, orderType, orderStyle, quantity });
+
     // 2. Create Order Object
     const orderId = store.generateOrderId();
     const newOrder = {
@@ -64,6 +193,7 @@ router.post('/', (req, res) => {
     // Save initial order
     store.createOrder(newOrder);
     store.updateOrderStatus(orderId, 'PLACED'); // Immediately set to PLACED per requirements
+    logger.info('Order created', { orderId, status: 'PLACED' });
 
     // 3. Execution Logic (MARKET Orders)
     if (orderStyle === 'MARKET') {
@@ -71,6 +201,7 @@ router.post('/', (req, res) => {
       
       // Update Order
       store.updateOrderStatus(orderId, 'EXECUTED', quantity, executionPrice);
+      logger.info('Order executed', { orderId, executionPrice, quantity });
 
       // Create Trade
       const tradeId = store.generateTradeId();
@@ -86,9 +217,11 @@ router.post('/', (req, res) => {
         timestamp: new Date()
       };
       store.createTrade(trade);
+      logger.info('Trade created', { tradeId, orderId, symbol, quantity, price: executionPrice });
 
       // Update Portfolio
       store.updatePortfolio(userId, instrument.symbol, quantity, executionPrice, orderType === 'BUY');
+      logger.info('Portfolio updated', { userId, symbol, quantity, action: orderType });
     }
 
     // 4. Response
@@ -105,6 +238,7 @@ router.post('/', (req, res) => {
 
   } catch (error) {
     console.error("Order placement error:", error);
+    logger.error('Order placement failed', { error: error.message, userId: req.userId });
     res.status(500).json({ success: false, error: { code: 500, message: "Internal Server Error" } });
   }
 });

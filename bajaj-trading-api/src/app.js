@@ -2,6 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const errorHandler = require('./middleware/errorHandler');
 
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+
+// Add this route BEFORE other routes
+
 // Import Routes
 const instrumentsRouter = require('./routes/instruments');
 const ordersRouter = require('./routes/orders');
@@ -13,6 +18,9 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Add this route BEFORE other routes
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Mount Routes
 app.use('/api/v1/instruments', instrumentsRouter);
