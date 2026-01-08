@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  bajaj-trading-api:
+    build: .
+    container_name: bajaj-trading-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - AUTH_TOKEN=mock-token-bajaj-2024
+    restart: unless-stopped
